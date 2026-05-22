@@ -21,7 +21,7 @@ if "analysis_complete" not in st.session_state:
     st.session_state.analysis_complete = False
     st.session_state.results = {}
 
-st.title("🧬 AI Bioinformatics Research Assistant")
+st.title("🧬 MKF Bioinformatics")
 st.markdown("Upload Fasta, BAM, VCF, CSV, or PDFs. The AI will auto-detect, analyze, and explain your results.")
 
 # 1. File Upload
