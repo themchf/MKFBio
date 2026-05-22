@@ -1,49 +1,51 @@
 import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 
-def create_volcano_plot(df: pd.DataFrame):
-    """
-    Expects a DataFrame with 'gene', 'log2FoldChange', and 'pvalue'.
-    """
-    # If using mock data (since we don't have a real CSV uploaded yet)
-    if not isinstance(df, pd.DataFrame) or 'pvalue' not in df.columns:
-        # Generate mock data for the UI
-        np.random.seed(42)
-        df = pd.DataFrame({
-            'gene': [f'GENE_{i}' for i in range(1, 501)],
-            'log2FoldChange': np.random.normal(0, 2, 500),
-            'pvalue': np.random.uniform(0, 0.05, 500)
-        })
-    
-    # Calculate -log10(p-value) for the Y axis
-    df['-log10(pvalue)'] = -np.log10(df['pvalue'])
-    
-    # Determine significance thresholds
-    df['Significance'] = 'Not Significant'
-    df.loc[(df['log2FoldChange'] > 1) & (df['pvalue'] < 0.05), 'Significance'] = 'Upregulated'
-    df.loc[(df['log2FoldChange'] < -1) & (df['pvalue'] < 0.05), 'Significance'] = 'Downregulated'
+def create_volcano_plot(analysis_meta: dict) -> go.Figure:
+    """Generates an explicit Volcano interactive graph mapping exact user parameters."""
+    if not analysis_meta.get("mapped"):
+        # Fallback view: Display a generic overview of numerical distributions if columns are unmapped
+        df = analysis_meta["dataframe"]
+        num_cols = df.select_dtypes(include=[np.number]).columns
+        if len(num_cols) >= 2:
+            return px.scatter(df, x=num_cols[0], y=num_cols[1], title=f"Feature Distribution: {num_cols[0]} vs {num_cols[1]}")
+        
+        # Absolute structural fallback
+        fig = go.Figure()
+        fig.add_annotation(text="Uploaded table structure does not contain statistical identifiers for a Volcano configuration.", showarrow=False)
+        return fig
 
-    color_map = {
-        'Not Significant': 'grey',
-        'Upregulated': 'red',
-        'Downregulated': 'blue'
-    }
+    df = analysis_meta["dataframe"].copy()
+    lfc = analysis_meta["lfc_col"]
+    p_val = analysis_meta["p_col"]
+    gene = analysis_meta["gene_col"]
+
+    # Protect against math logs errors with zero values
+    df = df[df[p_val] > 0]
+    df['-log10_p'] = -np.log10(df[p_val])
+
+    # Classify each point based on the data
+    df['Status'] = 'Not Significant'
+    df.loc[(df[lfc] > 1) & (df[p_val] < 0.05), 'Status'] = 'Significantly Upregulated'
+    df.loc[(df[lfc] < -1) & (df[p_val] < 0.05), 'Status'] = 'Significantly Downregulated'
 
     fig = px.scatter(
-        df, 
-        x='log2FoldChange', 
-        y='-log10(pvalue)',
-        color='Significance',
-        color_discrete_map=color_map,
-        hover_name='gene',
-        title='Volcano Plot (Differential Expression)',
-        labels={'log2FoldChange': 'Log2 Fold Change', '-log10(pvalue)': '-Log10 P-value'}
+        df,
+        x=lfc,
+        y='log10_p',
+        color='Status',
+        hover_name=gene,
+        color_discrete_map={
+            'Not Significant': '#bdc3c7',
+            'Significantly Upregulated': '#e74c3c',
+            'Significantly Downregulated': '#3498db'
+        },
+        labels={lfc: 'Log2 Fold Change', 'log10_p': '-Log10 (p-value)'},
+        title="Interactive Volcanogram"
     )
     
-    # Add threshold lines
-    fig.add_hline(y=-np.log10(0.05), line_dash="dash", line_color="black", annotation_text="p=0.05")
-    fig.add_vline(x=1, line_dash="dash", line_color="black")
-    fig.add_vline(x=-1, line_dash="dash", line_color="black")
-    
+    fig.add_hline(y=-np.log10(0.05), line_dash="dash", line_color="#2c3e50")
+    fig.update_layout(template="plotly_white", legend_title_text="Expression State")
     return fig
