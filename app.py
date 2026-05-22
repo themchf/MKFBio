@@ -1,3 +1,14 @@
+import os
+import sys
+
+# Force Python to look in the current working directory for modules
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Your original imports follow below...
+import streamlit as st
+import pandas as pd
+from src.orchestrator import ProcessOrchestrator
+from src.visualizer import create_volcano_plot
 import streamlit as st
 import pandas as pd
 from src.orchestrator import ProcessOrchestrator
