@@ -1,95 +1,92 @@
 import os
 import sys
 
-# Force Python to look in the current working directory for modules
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Force absolute system resolution to protect package routes
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(current_dir)
+sys.path.append(os.path.join(current_dir, "src"))
 
-# Your original imports follow below...
 import streamlit as st
 import pandas as pd
-from src.orchestrator import ProcessOrchestrator
-from src.visualizer import create_volcano_plot
-import streamlit as st
-import pandas as pd
-from src.orchestrator import ProcessOrchestrator
-from src.visualizer import create_volcano_plot
 
-st.set_page_config(page_title="BioScientist AI", page_icon="🧬", layout="wide")
+try:
+    from src.orchestrator import ProcessOrchestrator
+    from src.visualizer import create_volcano_plot
+except ModuleNotFoundError:
+    from orchestrator import ProcessOrchestrator
+    from visualizer import create_volcano_plot
 
-# Initialize state
-if "analysis_complete" not in st.session_state:
-    st.session_state.analysis_complete = False
-    st.session_state.results = {}
+st.set_page_config(page_title="BioNexus Intelligence", page_icon="🧬", layout="wide")
 
-st.title("🧬 MKF Bioinformatics")
-st.markdown("Upload Fasta, BAM, VCF, CSV, or PDFs. The AI will auto-detect, analyze, and explain your results.")
+# Detect platform keys safely across both local and production container frameworks
+openai_key = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
 
-# 1. File Upload
-uploaded_files = st.file_uploader(
-    "Drop biological data files here", 
-    accept_multiple_files=True,
-    type=["fasta", "fa", "fastq", "bam", "vcf", "csv", "pdf", "txt"]
-)
+if "computed_state" not in st.session_state:
+    st.session_state.computed_state = None
 
-if uploaded_files and not st.session_state.analysis_complete:
-    if st.button("Run AI Analysis", type="primary"):
-        with st.status("Initializing AI Research Pipeline...", expanded=True) as status:
-            orchestrator = ProcessOrchestrator()
-            
-            st.write("📂 Identifying file types and extracting metadata...")
-            parsed_data = orchestrator.parse_files(uploaded_files)
-            
-            st.write("🧠 Running statistical analysis and anomaly detection...")
-            stats_results = orchestrator.analyze_data(parsed_data)
-            
-            st.write("🔬 Generating biological explanations and finding literature...")
-            final_report = orchestrator.generate_explanation(stats_results)
-            
-            st.session_state.results = final_report
-            st.session_state.analysis_complete = True
-            status.update(label="Analysis Complete!", state="complete", expanded=False)
-            st.rerun()
+st.title("🧬 BioNexus Framework Engine")
+st.markdown("---")
 
-# 2. Results Dashboard
-if st.session_state.analysis_complete:
-    res = st.session_state.results
+col_sidebar, col_main = st.columns([1, 3])
+
+with col_sidebar:
+    st.header("Control Panel")
+    uploaded_files = st.file_uploader(
+        "Upload raw computational assets:", 
+        accept_multiple_files=True,
+        type=["fasta", "fa", "fna", "csv", "tsv", "txt"]
+    )
     
-    # Top-level summary
-    st.header("Executive Summary")
-    st.info(res.get("summary", "No summary generated."))
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.subheader("Interactive Visualizations")
-        # Example: Render Volcano plot if we have differential expression data
-        if "diff_expr" in res:
-            fig = create_volcano_plot(res["diff_expr"])
-            st.plotly_chart(fig, use_container_width=True)
-            
-    with col2:
-        st.subheader("Data Quality & Anomalies")
+    if not openai_key:
+        openai_key = st.text_input("Enter OpenAI API Key manually if required:", type="password")
+
+    if uploaded_files:
+        if st.button("Initialize Computational Pipeline", type="primary"):
+            with st.spinner("Processing biological data matrices..."):
+                engine = ProcessOrchestrator()
+                st.session_state.computed_state = engine.execution_flow(uploaded_files, openai_key)
+                st.rerun()
+
+with col_main:
+    if st.session_state.computed_state:
+        res = st.session_state.computed_state
+        
+        st.success(res["summary"])
+        
+        # Display anomalies dynamically if found in the file
         if res.get("anomalies"):
             for anomaly in res["anomalies"]:
-                st.warning(anomaly)
-        else:
-            st.success("Sequencing QC passed. No major anomalies detected.")
+                st.warning(f"⚠️ {anomaly}")
+                
+        # Tabbed Dashboard View
+        tab_viz, tab_report, tab_lit = st.tabs(["📊 Interactive Visualization", "🔬 Automated Core Insights", "📖 Live PubMed References"])
+        
+        with tab_viz:
+            st.subheader("Interactive Graphic Profiling Workspace")
+            if res["data_type"] == "expression":
+                fig = create_volcano_plot(res["raw_meta"])
+                st.plotly_chart(fig, use_container_width=True)
+            elif res["data_type"] == "fasta":
+                df_metrics = res["raw_meta"]["metrics"]
+                st.dataframe(df_metrics, use_container_width=True)
+                # Render a distribution layout plot of real GC ratios across lines
+                import plotly.express as px
+                fig = px.histogram(df_metrics, x="gc_content", title="GC Percentage Frequency Mapping Profile", labels={"gc_content": "GC (%)"})
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No active visualization template associated with uploaded file signature parameters.")
+                
+        with tab_report:
+            st.header("Explain My Results")
+            st.markdown(res["detailed_explanation"])
             
-    st.divider()
-    
-    # The "Explain My Results" Feature
-    st.header("Explain My Results")
-    st.markdown(res.get("detailed_explanation", ""))
-    
-    st.subheader("Suggested Next Experiments")
-    for exp in res.get("next_steps", []):
-        st.markdown(f"- {exp}")
-        
-    st.subheader("Literature Citations")
-    for cite in res.get("citations", []):
-        st.markdown(f"📖 {cite}")
-        
-    if st.button("Reset Analysis"):
-        st.session_state.analysis_complete = False
-        st.session_state.results = {}
-        st.rerun()
+            st.subheader("Targeted Experimental Iterations")
+            for step in res["next_steps"]:
+                st.markdown(f"- {step}")
+                
+        with tab_lit:
+            st.subheader("Dynamic Verified Literature Cross-Matching")
+            for paper in res["citations"]:
+                st.markdown(paper)
+    else:
+        st.info("Drop your analytical execution matrices or structural fasta targets inside the workspace drop zone to initialize real-time platform calculations.")
