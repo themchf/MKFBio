@@ -1,0 +1,11 @@
+streamlit>=1.32.0
+pandas
+numpy
+plotly
+biopython
+scikit-learn
+langchain
+langchain-openai
+pysam           # For BAM/SAM files
+PyVCF3          # For VCF files
+pdfplumber      # For parsing literature PDFs
